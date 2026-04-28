@@ -142,9 +142,7 @@ async function seedIfEmpty() {
 
   const profRow = await get('SELECT COUNT(*) as c FROM profile');
   if (profRow.c === 0) {
-    await run(
-      `INSERT INTO profile (id, name, farm_name, primary_crop, soil_type, coordinates, region, contact, farmer_id, plan, farm_area, season, disease_free_days, notifications_enabled)
-       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    await run('INSERT INTO profile (id, name, farm_name, primary_crop, soil_type, coordinates, region, contact, farmer_id, plan, farm_area, season, disease_free_days, notifications_enabled) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       ['Sachchidanand M', 'Green Valley Plot', 'Tomato (Solanum lycopersicum)', 'Sandy Loam', '17.3850°N, 78.4867°E', 'Telangana, India', '+91 98765 43210', 'TG-2026-042813', 'Premium', '4.2 ha', 'Kharif 2026', 24, 0]
     );
   }
@@ -193,8 +191,7 @@ async function seedIfEmpty() {
 
   const cycleRow = await get('SELECT COUNT(*) as c FROM crop_cycles');
   if (cycleRow.c === 0) {
-    await run(
-      `INSERT INTO crop_cycles (id,crop,variety,field,area,sowing_date,expected_harvest,current_stage,notes) VALUES (?,?,?,?,?,?,?,?,?)`,
+    await run('INSERT INTO crop_cycles (id,crop,variety,field,area,sowing_date,expected_harvest,current_stage,notes) VALUES (?,?,?,?,?,?,?,?,?)',
       ['cc1','Tomato','Hybrid F1 (Arka Rakshak)','Main Field','4.2 ha','2026-03-01','2026-06-15','flowering','Kharif 2026 season']
     );
     const stages = [
