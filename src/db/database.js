@@ -65,9 +65,7 @@ async function seedIfEmpty() {
       ['4', 'MEDIUM', 'Soil Moisture Low', 'Soil moisture in zone C1 dropped below 30%. Consider irrigation within 24 hours.', 'Yesterday, 02:15 PM', 'Soil Sensor', 1],
       ['5', 'LOW', 'Temperature Fluctuation', 'Nighttime temperature dropped 8°C below forecast. Monitor for cold stress symptoms.', '2 days ago', 'Weather Model', 1],
     ];
-    for (const a of alerts) {
-      await run('INSERT INTO alerts (id, severity, title, description, timestamp, source, acknowledged) VALUES (?, ?, ?, ?, ?, ?, ?)', a);
-    }
+    await Promise.all(alerts.map(a => run('INSERT INTO alerts (id, severity, title, description, timestamp, source, acknowledged) VALUES (?, ?, ?, ?, ?, ?, ?)', a)));
   }
 
   const soilRow = await get('SELECT COUNT(*) as c FROM soil_nutrients');
@@ -80,9 +78,7 @@ async function seedIfEmpty() {
       ['OM', 'Organic Matter', 'OM', 1.4, '%', 1.0, 5.0, 3.0, 'LOW', 'Organic matter is on the lower end. Higher OM improves water retention, nutrient holding, and microbial activity.', 'Incorporate compost or green manure before next season.'],
       ['EC', 'Electrical Conductivity', 'EC', 2.8, 'dS/m', 0, 4.0, 2.0, 'WARNING', 'EC approaching the upper tolerance limit. High EC may cause osmotic stress and reduce water uptake.', 'Flush soil with clean water and reduce fertilizer input.'],
     ];
-    for (const n of nutrients) {
-      await run('INSERT INTO soil_nutrients (id, name, symbol, value, unit, min, max, optimal, status, description, action) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', n);
-    }
+    await Promise.all(nutrients.map(n => run('INSERT INTO soil_nutrients (id, name, symbol, value, unit, min, max, optimal, status, description, action) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', n)));
   }
 
   const trendRow = await get('SELECT COUNT(*) as c FROM soil_trend');
@@ -96,9 +92,7 @@ async function seedIfEmpty() {
       ['Mar 25', 43, 29, 65, '2026-03-25'],
       ['Mar 26', 42, 28, 64, '2026-03-26'],
     ];
-    for (const t of trends) {
-      await run('INSERT INTO soil_trend (label, n, p, k, recorded_date) VALUES (?, ?, ?, ?, ?)', t);
-    }
+    await Promise.all(trends.map(t => run('INSERT INTO soil_trend (label, n, p, k, recorded_date) VALUES (?, ?, ?, ?, ?)', t)));
   }
 
   const zoneRow = await get('SELECT COUNT(*) as c FROM disease_zones');
@@ -109,9 +103,7 @@ async function seedIfEmpty() {
       ['3', 'Powdery Mildew', 'Erysiphe cichoracearum', 3, 3, 12.1, 'moderate', 'W', '1 hr ago', 'falling'],
       ['4', 'Root Rot', 'Fusarium oxysporum', 1, 2, 19.4, 'low', 'S', '2 hr ago', 'stable'],
     ];
-    for (const z of zones) {
-      await run('INSERT INTO disease_zones (id, disease, pathogen, cases, radius, distance, risk, direction, last_updated, trend) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', z);
-    }
+    await Promise.all(zones.map(z => run('INSERT INTO disease_zones (id, disease, pathogen, cases, radius, distance, risk, direction, last_updated, trend) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', z)));
   }
 
   const histRow = await get('SELECT COUNT(*) as c FROM disease_history');
@@ -122,9 +114,7 @@ async function seedIfEmpty() {
       ['March 19', 'Moderate risk advisory issued'],
       ['March 15', 'Low-level fungal spores detected'],
     ];
-    for (const h of history) {
-      await run('INSERT INTO disease_history (date, event) VALUES (?, ?)', h);
-    }
+    await Promise.all(history.map(h => run('INSERT INTO disease_history (date, event) VALUES (?, ?)', h)));
   }
 
   const tipsRow = await get('SELECT COUNT(*) as c FROM prevention_tips');
@@ -135,9 +125,7 @@ async function seedIfEmpty() {
       ['eye', 'Inspect plants in zone B4 daily for early blight symptoms', 'Medium'],
       ['people', 'Coordinate with neighboring farms to synchronize spray schedules', 'Medium'],
     ];
-    for (const t of tips) {
-      await run('INSERT INTO prevention_tips (icon, tip, priority) VALUES (?, ?, ?)', t);
-    }
+    await Promise.all(tips.map(t => run('INSERT INTO prevention_tips (icon, tip, priority) VALUES (?, ?, ?)', t)));
   }
 
   const profRow = await get('SELECT COUNT(*) as c FROM profile');
@@ -156,9 +144,7 @@ async function seedIfEmpty() {
       ['Market Updates', 1],
       ['Sensor Anomalies', 1],
     ];
-    for (const p of prefs) {
-      await run('INSERT INTO notification_preferences (alert_type, enabled) VALUES (?, ?)', p);
-    }
+    await Promise.all(prefs.map(p => run('INSERT INTO notification_preferences (alert_type, enabled) VALUES (?, ?)', p)));
   }
 
   const actRow = await get('SELECT COUNT(*) as c FROM activity');
@@ -170,11 +156,8 @@ async function seedIfEmpty() {
       ['flask', '#42a5f5', 'Soil N-P-K within safe range', '09:00 AM', today],
       ['notifications', '#ef5350', 'Spray reminder scheduled', '10:30 AM', today],
     ];
-    for (const a of activities) {
-      await run('INSERT INTO activity (icon, color, label, time, date) VALUES (?, ?, ?, ?, ?)', a);
-    }
+    await Promise.all(activities.map(a => run('INSERT INTO activity (icon, color, label, time, date) VALUES (?, ?, ?, ?, ?)', a)));
   }
-}
 
   const sprayRow = await get('SELECT COUNT(*) as c FROM spray_logs');
   if (sprayRow.c === 0) {
@@ -184,9 +167,7 @@ async function seedIfEmpty() {
       ['sp2', '2026-04-15', '06:30 AM', 'Chlorpyrifos 20% EC', 'insecticide', '2 mL/L', '2.0 ha', 'Zone A', 'Partly cloudy', 'Aphid control', 1],
       ['sp3', today, '08:00 AM', 'Copper Oxychloride 50% WP', 'fungicide', '3 g/L', '4.2 ha', 'Full Farm', 'Sunny', 'Late blight prevention', 0],
     ];
-    for (const s of sprays) {
-      await run('INSERT INTO spray_logs (id,date,time,chemical,chemical_type,dose,area,zone,weather,notes,done) VALUES (?,?,?,?,?,?,?,?,?,?,?)', s);
-    }
+    await Promise.all(sprays.map(s => run('INSERT INTO spray_logs (id,date,time,chemical,chemical_type,dose,area,zone,weather,notes,done) VALUES (?,?,?,?,?,?,?,?,?,?,?)', s)));
   }
 
   const cycleRow = await get('SELECT COUNT(*) as c FROM crop_cycles');
@@ -201,9 +182,8 @@ async function seedIfEmpty() {
       ['cc1','vegetative','2026-04-05','Rapid leaf growth, first fertilizer applied'],
       ['cc1','flowering','2026-04-20','First flowers visible, irrigation increased'],
     ];
-    for (const s of stages) {
-      await run('INSERT INTO crop_stage_logs (cycle_id,stage,date,notes) VALUES (?,?,?,?)', s);
-    }
+    await Promise.all(stages.map(s => run('INSERT INTO crop_stage_logs (cycle_id,stage,date,notes) VALUES (?,?,?,?)', s)));
   }
+}
 
 module.exports = { getDb, initDb, run, get, all, exec };
