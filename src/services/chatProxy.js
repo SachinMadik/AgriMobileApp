@@ -1,42 +1,23 @@
 const fetch = require('node-fetch');
 
-// ── Model config ──────────────────────────────────────────────────────────────
-const HF_MODEL = 'meta-llama/Llama-3.1-8B-Instruct';
-const HF_URL   = 'https://router.huggingface.co/v1/chat/completions';
+// Free Hugging Face Inference API (no router, no billing required)
+const HF_MODEL = 'mistralai/Mistral-7B-Instruct-v0.3';
+const HF_URL   = `https://api-inference.huggingface.co/models/${HF_MODEL}`;
 
-// ── System prompt ─────────────────────────────────────────────────────────────
 const SYSTEM_PROMPT = `You are CropGuard AI, a specialist agricultural assistant for Indian farmers.
+Answer ONLY agriculture-related questions about crop diseases, pest control, soil health, fertilizers, irrigation, weather-based farming, harvest timing, and government schemes.
+If a question is NOT related to agriculture, respond ONLY with: "I can only help with agriculture-related questions."
+Give practical, actionable advice. Keep responses under 200 words. When recommending chemicals, mention safety precautions.`;
 
-YOUR ROLE:
-- Answer ONLY agriculture-related questions
-- Topics: crop diseases, pest control, soil health, fertilizers, irrigation, weather-based farming, harvest timing, post-harvest management, crop varieties, organic farming, government schemes for farmers
-
-STRICT RULES:
-1. If a question is NOT related to agriculture or farming, respond ONLY with:
-   "I can only help with agriculture-related questions. Please ask me about crops, soil, pests, irrigation, or farming practices."
-2. Never discuss politics, entertainment, general knowledge, coding, or any non-farming topic
-3. Give practical, actionable advice for small and medium Indian farmers
-4. Keep responses under 200 words unless detail is genuinely needed
-5. When recommending chemicals, always mention safety precautions
-
-You are embedded in the CropGuard AI app used by farmers in India growing tomatoes, rice, wheat, cotton, and vegetables.`;
-
-// ── Agriculture keyword filter ────────────────────────────────────────────────
 const AGRI_KEYWORDS = [
-  'crop', 'plant', 'seed', 'harvest', 'yield', 'farm', 'field', 'garden',
-  'tomato', 'rice', 'wheat', 'cotton', 'maize', 'corn', 'potato', 'onion',
-  'vegetable', 'fruit', 'paddy', 'sugarcane', 'groundnut', 'soybean', 'pulse',
-  'soil', 'fertilizer', 'fertiliser', 'nitrogen', 'phosphorus', 'potassium',
-  'npk', 'urea', 'compost', 'manure', 'organic', 'ph', 'nutrient', 'leaching',
-  'pest', 'disease', 'fungal', 'blight', 'mildew', 'rot', 'wilt', 'virus',
-  'insect', 'aphid', 'whitefly', 'nematode', 'weed', 'spray', 'pesticide',
-  'fungicide', 'herbicide', 'insecticide',
-  'irrigation', 'water', 'rain', 'drought', 'flood', 'humidity', 'temperature',
-  'weather', 'monsoon', 'season', 'kharif', 'rabi', 'summer',
-  'sow', 'transplant', 'prune', 'mulch', 'intercrop', 'rotation', 'tillage',
-  'plough', 'plow', 'greenhouse', 'drip', 'sprinkler',
-  'farmer', 'agriculture', 'agri', 'cultivation', 'grow', 'acre', 'hectare',
-  'market', 'mandi', 'price', 'scheme', 'subsidy', 'loan',
+  'crop','plant','seed','harvest','yield','farm','field','tomato','rice','wheat',
+  'cotton','maize','corn','potato','onion','vegetable','fruit','paddy','sugarcane',
+  'soil','fertilizer','fertiliser','nitrogen','phosphorus','potassium','npk','urea',
+  'compost','manure','organic','nutrient','pest','disease','fungal','blight','mildew',
+  'rot','wilt','insect','aphid','spray','pesticide','fungicide','herbicide',
+  'irrigation','water','rain','drought','flood','humidity','temperature','weather',
+  'monsoon','season','kharif','rabi','farmer','agriculture','agri','cultivation',
+  'grow','acre','hectare','market','mandi','scheme','subsidy',
 ];
 
 function isAgricultureRelated(text) {
@@ -44,32 +25,28 @@ function isAgricultureRelated(text) {
   return AGRI_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
-// ── Main chat function ────────────────────────────────────────────────────────
 async function sendChat(messages) {
   const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user');
   const userText = lastUserMsg?.content ?? '';
 
-  console.log(`[Chat] Incoming: "${userText.slice(0, 100)}"`);
-
-  // Fast agriculture filter — reject before hitting API
   if (userText.length > 0 && !isAgricultureRelated(userText)) {
-    console.log('[Chat] Rejected — non-agriculture query');
-    return {
-      reply: "I can only help with agriculture-related questions. Please ask me about crops, soil, pests, irrigation, or farming practices. 🌱",
-    };
+    return { reply: "I can only help with agriculture-related questions. Please ask me about crops, soil, pests, irrigation, or farming practices. 🌱" };
   }
 
-  // Validate token
   const token = process.env.HF_API_TOKEN;
   if (!token || token.length < 10) {
-    console.error('[Chat] HF_API_TOKEN is not configured in .env');
-    return {
-      reply: "The AI assistant is not configured. Please add your HF_API_TOKEN to the backend .env file.",
-    };
+    return { reply: "The AI assistant is not configured. Please add HF_API_TOKEN to the backend environment variables." };
   }
 
+  // Build prompt in Mistral instruct format
+  const history = messages.map((m) =>
+    m.role === 'user' ? `[INST] ${m.content} [/INST]` : m.content
+  ).join('\n');
+
+  const prompt = `${SYSTEM_PROMPT}\n\n${history}`;
+
   try {
-    console.log(`[Chat] Calling HF Router (${HF_MODEL}) with ${messages.length} message(s)`);
+    console.log(`[Chat] Calling HF Inference API (${HF_MODEL})`);
 
     const response = await fetch(HF_URL, {
       method: 'POST',
@@ -78,53 +55,45 @@ async function sendChat(messages) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: HF_MODEL,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          ...messages,
-        ],
-        max_tokens: 512,
-        temperature: 0.4,
-        top_p: 0.9,
-        stream: false,
+        inputs: prompt,
+        parameters: {
+          max_new_tokens: 300,
+          temperature: 0.4,
+          top_p: 0.9,
+          return_full_text: false,
+        },
+        options: { wait_for_model: true },
       }),
     });
 
     if (!response.ok) {
       const errorBody = await response.text();
       console.error(`[Chat] HF API error ${response.status}: ${errorBody}`);
-
       if (response.status === 401 || response.status === 403) {
-        return { reply: "Invalid Hugging Face token. Please check your HF_API_TOKEN in the backend .env file." };
-      }
-      if (response.status === 429) {
-        return { reply: "The AI service is rate-limited. Please wait a moment and try again." };
+        return { reply: "Invalid Hugging Face token. Please check HF_API_TOKEN in Render environment variables." };
       }
       if (response.status === 503) {
-        return { reply: "The AI model is warming up. Please try again in 20 seconds." };
+        return { reply: "The AI model is loading. Please try again in 20 seconds." };
       }
-
-      const err = new Error(`HF API error: ${response.status}`);
-      err.status = 502;
-      throw err;
+      if (response.status === 429) {
+        return { reply: "AI service is rate-limited. Please wait a moment and try again." };
+      }
+      return { reply: "AI service is temporarily unavailable. Please try again shortly." };
     }
 
     const data = await response.json();
-
-    // OpenAI-compatible response
-    const reply = data?.choices?.[0]?.message?.content?.trim()
+    const reply = (Array.isArray(data) ? data[0]?.generated_text : data?.generated_text)?.trim()
       ?? 'Sorry, I could not generate a response. Please try again.';
 
-    console.log(`[Chat] Reply (${reply.length} chars): "${reply.slice(0, 80)}..."`);
+    console.log(`[Chat] Reply (${reply.length} chars)`);
     return { reply };
 
   } catch (err) {
     if (err.code === 'ENOTFOUND' || err.code === 'ECONNREFUSED') {
-      console.error('[Chat] Network error:', err.message);
-      return { reply: "Cannot connect to the AI service. Please check the backend's internet connection." };
+      return { reply: "Cannot connect to the AI service. Please check your internet connection." };
     }
-    console.error('[Chat] Unexpected error:', err.message);
-    throw err;
+    console.error('[Chat] Error:', err.message);
+    return { reply: "Something went wrong with the AI service. Please try again." };
   }
 }
 
