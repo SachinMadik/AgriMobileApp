@@ -1,100 +1,97 @@
 const fetch = require('node-fetch');
 
-// Free Hugging Face Inference API (no router, no billing required)
-const HF_MODEL = 'mistralai/Mistral-7B-Instruct-v0.3';
-const HF_URL   = `https://api-inference.huggingface.co/models/${HF_MODEL}`;
+// Use HF Inference API with a reliable, always-available model
+const MODELS = [
+  'HuggingFaceH4/zephyr-7b-beta',
+  'mistralai/Mistral-7B-Instruct-v0.2',
+  'tiiuae/falcon-7b-instruct',
+];
 
-const SYSTEM_PROMPT = `You are CropGuard AI, a specialist agricultural assistant for Indian farmers.
-Answer ONLY agriculture-related questions about crop diseases, pest control, soil health, fertilizers, irrigation, weather-based farming, harvest timing, and government schemes.
-If a question is NOT related to agriculture, respond ONLY with: "I can only help with agriculture-related questions."
-Give practical, actionable advice. Keep responses under 200 words. When recommending chemicals, mention safety precautions.`;
+const HF_BASE = 'https://api-inference.huggingface.co/models/';
+
+const SYSTEM_PROMPT = `You are CropGuard AI, an agricultural assistant for Indian farmers.
+Answer ONLY agriculture questions: crop diseases, pests, soil, fertilizers, irrigation, weather, harvest, government schemes.
+If not agriculture-related, say: "I can only help with agriculture questions."
+Be concise (under 150 words), practical, and actionable.`;
 
 const AGRI_KEYWORDS = [
   'crop','plant','seed','harvest','yield','farm','field','tomato','rice','wheat',
-  'cotton','maize','corn','potato','onion','vegetable','fruit','paddy','sugarcane',
-  'soil','fertilizer','fertiliser','nitrogen','phosphorus','potassium','npk','urea',
-  'compost','manure','organic','nutrient','pest','disease','fungal','blight','mildew',
-  'rot','wilt','insect','aphid','spray','pesticide','fungicide','herbicide',
-  'irrigation','water','rain','drought','flood','humidity','temperature','weather',
-  'monsoon','season','kharif','rabi','farmer','agriculture','agri','cultivation',
-  'grow','acre','hectare','market','mandi','scheme','subsidy',
+  'cotton','maize','potato','onion','vegetable','fruit','soil','fertilizer','nitrogen',
+  'phosphorus','potassium','npk','urea','compost','pest','disease','fungal','blight',
+  'mildew','rot','spray','pesticide','fungicide','irrigation','water','rain','drought',
+  'humidity','temperature','weather','monsoon','kharif','rabi','farmer','agriculture',
 ];
 
-function isAgricultureRelated(text) {
+function isAgriRelated(text) {
   const lower = text.toLowerCase();
   return AGRI_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
-async function sendChat(messages) {
-  const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user');
-  const userText = lastUserMsg?.content ?? '';
+function buildPrompt(messages) {
+  const history = messages.map((m) =>
+    m.role === 'user' ? `User: ${m.content}` : `Assistant: ${m.content}`
+  ).join('\n');
+  return `${SYSTEM_PROMPT}\n\n${history}\nAssistant:`;
+}
 
-  if (userText.length > 0 && !isAgricultureRelated(userText)) {
-    return { reply: "I can only help with agriculture-related questions. Please ask me about crops, soil, pests, irrigation, or farming practices. 🌱" };
+async function tryModel(modelUrl, prompt, token) {
+  const res = await fetch(modelUrl, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      inputs: prompt,
+      parameters: { max_new_tokens: 250, temperature: 0.4, top_p: 0.9, return_full_text: false },
+      options: { wait_for_model: true, use_cache: false },
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status, body });
+  }
+
+  const data = await res.json();
+  const text = (Array.isArray(data) ? data[0]?.generated_text : data?.generated_text) ?? '';
+  // Clean up — stop at next "User:" if model continues the conversation
+  return text.split(/\nUser:/i)[0].trim();
+}
+
+async function sendChat(messages) {
+  const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+  const userText = lastUser?.content ?? '';
+
+  if (userText && !isAgriRelated(userText)) {
+    return { reply: "I can only help with agriculture-related questions. Please ask about crops, soil, pests, irrigation, or farming. 🌱" };
   }
 
   const token = process.env.HF_API_TOKEN;
   if (!token || token.length < 10) {
-    return { reply: "The AI assistant is not configured. Please add HF_API_TOKEN to the backend environment variables." };
+    return { reply: "AI assistant not configured. Please add HF_API_TOKEN to environment variables." };
   }
 
-  // Build prompt in Mistral instruct format
-  const history = messages.map((m) =>
-    m.role === 'user' ? `[INST] ${m.content} [/INST]` : m.content
-  ).join('\n');
+  const prompt = buildPrompt(messages);
 
-  const prompt = `${SYSTEM_PROMPT}\n\n${history}`;
-
-  try {
-    console.log(`[Chat] Calling HF Inference API (${HF_MODEL})`);
-
-    const response = await fetch(HF_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        inputs: prompt,
-        parameters: {
-          max_new_tokens: 300,
-          temperature: 0.4,
-          top_p: 0.9,
-          return_full_text: false,
-        },
-        options: { wait_for_model: true },
-      }),
-    });
-
-    if (!response.ok) {
-      const errorBody = await response.text();
-      console.error(`[Chat] HF API error ${response.status}: ${errorBody}`);
-      if (response.status === 401 || response.status === 403) {
+  for (const model of MODELS) {
+    try {
+      console.log(`[Chat] Trying model: ${model}`);
+      const reply = await tryModel(`${HF_BASE}${model}`, prompt, token);
+      if (reply && reply.length > 10) {
+        console.log(`[Chat] Success with ${model} (${reply.length} chars)`);
+        return { reply };
+      }
+    } catch (err) {
+      console.warn(`[Chat] ${model} failed: ${err.message}`);
+      if (err.status === 401 || err.status === 403) {
         return { reply: "Invalid Hugging Face token. Please check HF_API_TOKEN in Render environment variables." };
       }
-      if (response.status === 503) {
-        return { reply: "The AI model is loading. Please try again in 20 seconds." };
-      }
-      if (response.status === 429) {
-        return { reply: "AI service is rate-limited. Please wait a moment and try again." };
-      }
-      return { reply: "AI service is temporarily unavailable. Please try again shortly." };
+      // Try next model on 503/429/timeout
     }
-
-    const data = await response.json();
-    const reply = (Array.isArray(data) ? data[0]?.generated_text : data?.generated_text)?.trim()
-      ?? 'Sorry, I could not generate a response. Please try again.';
-
-    console.log(`[Chat] Reply (${reply.length} chars)`);
-    return { reply };
-
-  } catch (err) {
-    if (err.code === 'ENOTFOUND' || err.code === 'ECONNREFUSED') {
-      return { reply: "Cannot connect to the AI service. Please check your internet connection." };
-    }
-    console.error('[Chat] Error:', err.message);
-    return { reply: "Something went wrong with the AI service. Please try again." };
   }
+
+  // All models failed — return helpful offline response
+  return {
+    reply: "The AI service is currently busy. Here are quick tips:\n• Late blight: apply copper fungicide immediately\n• Low nitrogen: apply urea 8kg/ha\n• Pest control: use neem oil spray\n• Please try again in a moment.",
+  };
 }
 
 module.exports = { sendChat };
