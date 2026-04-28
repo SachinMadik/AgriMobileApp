@@ -30,5 +30,8 @@
     "testMatch": [
       "**/src/__tests__/**/*.test.js"
     ]
+  },
+  "engines": {
+    "node": "20.x"
   }
 }
