@@ -178,4 +178,35 @@ async function seedIfEmpty() {
   }
 }
 
+  const sprayRow = await get('SELECT COUNT(*) as c FROM spray_logs');
+  if (sprayRow.c === 0) {
+    const today = new Date().toISOString().split('T')[0];
+    const sprays = [
+      ['sp1', '2026-04-20', '07:00 AM', 'Mancozeb 75% WP', 'fungicide', '2.5 g/L', '4.2 ha', 'Full Farm', 'Clear, low wind', 'Preventive spray before monsoon', 1],
+      ['sp2', '2026-04-15', '06:30 AM', 'Chlorpyrifos 20% EC', 'insecticide', '2 mL/L', '2.0 ha', 'Zone A', 'Partly cloudy', 'Aphid control', 1],
+      ['sp3', today, '08:00 AM', 'Copper Oxychloride 50% WP', 'fungicide', '3 g/L', '4.2 ha', 'Full Farm', 'Sunny', 'Late blight prevention', 0],
+    ];
+    for (const s of sprays) {
+      await run('INSERT INTO spray_logs (id,date,time,chemical,chemical_type,dose,area,zone,weather,notes,done) VALUES (?,?,?,?,?,?,?,?,?,?,?)', s);
+    }
+  }
+
+  const cycleRow = await get('SELECT COUNT(*) as c FROM crop_cycles');
+  if (cycleRow.c === 0) {
+    await run(
+      `INSERT INTO crop_cycles (id,crop,variety,field,area,sowing_date,expected_harvest,current_stage,notes) VALUES (?,?,?,?,?,?,?,?,?)`,
+      ['cc1','Tomato','Hybrid F1 (Arka Rakshak)','Main Field','4.2 ha','2026-03-01','2026-06-15','flowering','Kharif 2026 season']
+    );
+    const stages = [
+      ['cc1','sowing','2026-03-01','Seeds sown in nursery beds'],
+      ['cc1','germination','2026-03-08','80% germination observed'],
+      ['cc1','transplanting','2026-03-22','Seedlings transplanted to main field'],
+      ['cc1','vegetative','2026-04-05','Rapid leaf growth, first fertilizer applied'],
+      ['cc1','flowering','2026-04-20','First flowers visible, irrigation increased'],
+    ];
+    for (const s of stages) {
+      await run('INSERT INTO crop_stage_logs (cycle_id,stage,date,notes) VALUES (?,?,?,?)', s);
+    }
+  }
+
 module.exports = { getDb, initDb, run, get, all, exec };

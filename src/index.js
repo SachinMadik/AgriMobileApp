@@ -33,6 +33,8 @@ app.use('/notifications', require('./routes/notifications'));
 app.use('/activity', require('./routes/activity'));
 app.use('/reminders', require('./routes/reminders'));
 app.use('/leaching-report', require('./routes/leaching'));
+app.use('/spray-log', require('./routes/spray-log'));
+app.use('/crop-calendar', require('./routes/crop-calendar'));
 
 // 404 handler
 app.use((req, res) => {

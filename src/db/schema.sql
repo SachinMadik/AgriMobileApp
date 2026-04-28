@@ -104,3 +104,40 @@ CREATE TABLE IF NOT EXISTS reminders (
   done       INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS spray_logs (
+  id          TEXT PRIMARY KEY,
+  date        TEXT NOT NULL,
+  time        TEXT NOT NULL,
+  chemical    TEXT NOT NULL,
+  chemical_type TEXT NOT NULL DEFAULT 'fungicide',
+  dose        TEXT NOT NULL,
+  area        TEXT NOT NULL,
+  zone        TEXT NOT NULL DEFAULT 'Full Farm',
+  weather     TEXT NOT NULL DEFAULT '',
+  notes       TEXT,
+  done        INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS crop_cycles (
+  id           TEXT PRIMARY KEY,
+  crop         TEXT NOT NULL,
+  variety      TEXT NOT NULL DEFAULT '',
+  field        TEXT NOT NULL DEFAULT 'Main Field',
+  area         TEXT NOT NULL DEFAULT '1 ha',
+  sowing_date  TEXT NOT NULL,
+  expected_harvest TEXT NOT NULL,
+  current_stage TEXT NOT NULL DEFAULT 'sowing',
+  notes        TEXT,
+  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS crop_stage_logs (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  cycle_id   TEXT NOT NULL,
+  stage      TEXT NOT NULL,
+  date       TEXT NOT NULL,
+  notes      TEXT,
+  FOREIGN KEY (cycle_id) REFERENCES crop_cycles(id) ON DELETE CASCADE
+);
