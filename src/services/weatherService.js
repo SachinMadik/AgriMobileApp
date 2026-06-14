@@ -1,7 +1,7 @@
 const fetch = require('node-fetch');
 const NodeCache = require('node-cache');
 
-const cache = new NodeCache({ stdTTL: 600 }); // 10 minutes
+const cache = new NodeCache({ stdTTL: 300 }); // 5 minutes
 
 const ICON_MAP = {
   '01d': 'sunny', '01n': 'moon',
@@ -36,7 +36,7 @@ async function getCurrentWeather(lat, lon) {
   const result = {
     temperature: data.main?.temp ?? 0,
     humidity: data.main?.humidity ?? 0,
-    rainfall: data.rain?.['1h'] ?? 0,
+    rainfall: data.rain?.['1h'] ?? data.rain?.['3h'] ?? 0,
     windSpeed: data.wind?.speed ?? 0,
     cloudCover: data.clouds?.all ?? 0,
   };
