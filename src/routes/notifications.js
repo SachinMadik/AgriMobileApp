@@ -4,7 +4,7 @@ const { run, all } = require('../db/database');
 
 router.post('/enable', async (req, res, next) => {
   try {
-    await run('UPDATE profile SET notifications_enabled = 1 WHERE id = 1');
+    await run('UPDATE profile SET notifications_enabled = 1 WHERE user_id = ?', [req.userId]);
     res.json({ enabled: true });
   } catch (err) { next(err); }
 });
@@ -16,24 +16,30 @@ router.put('/preferences', async (req, res, next) => {
       return res.status(400).json({ error: 'preferences object is required', code: 400 });
     }
     for (const [alertType, enabled] of Object.entries(preferences)) {
-      await run(
-        'INSERT INTO notification_preferences (alert_type, enabled) VALUES (?, ?) ON CONFLICT(alert_type) DO UPDATE SET enabled = excluded.enabled',
-        [alertType, enabled ? 1 : 0]
-      );
+      try {
+        await run(
+          `INSERT INTO notification_preferences (user_id, alert_type, enabled) VALUES (?, ?, ?)
+           ON CONFLICT(user_id, alert_type) DO UPDATE SET enabled = excluded.enabled`,
+          [req.userId, alertType, enabled ? 1 : 0]
+        );
+      } catch {
+        // Fallback for old schema with UNIQUE(alert_type) constraint
+        await run(
+          `INSERT INTO notification_preferences (user_id, alert_type, enabled) VALUES (?, ?, ?)
+           ON CONFLICT(alert_type) DO UPDATE SET enabled = excluded.enabled, user_id = excluded.user_id`,
+          [req.userId, alertType, enabled ? 1 : 0]
+        );
+      }
     }
-    const rows = await all('SELECT alert_type, enabled FROM notification_preferences');
-    const result = {};
-    rows.forEach(r => { result[r.alert_type] = r.enabled === 1; });
-    res.json(result);
+    const rows = await all('SELECT alert_type, enabled FROM notification_preferences WHERE user_id = ?', [req.userId]);
+    res.json(Object.fromEntries(rows.map(r => [r.alert_type, r.enabled === 1])));
   } catch (err) { next(err); }
 });
 
 router.get('/preferences', async (req, res, next) => {
   try {
-    const rows = await all('SELECT alert_type, enabled FROM notification_preferences');
-    const result = {};
-    rows.forEach(r => { result[r.alert_type] = r.enabled === 1; });
-    res.json(result);
+    const rows = await all('SELECT alert_type, enabled FROM notification_preferences WHERE user_id = ?', [req.userId]);
+    res.json(Object.fromEntries(rows.map(r => [r.alert_type, r.enabled === 1])));
   } catch (err) { next(err); }
 });
 

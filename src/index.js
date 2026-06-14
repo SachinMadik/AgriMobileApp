@@ -4,24 +4,28 @@ const cors = require('cors');
 const os = require('os');
 const { initDb } = require('./db/database');
 const errorHandler = require('./middleware/errorHandler');
+const authenticate = require('./middleware/auth');
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-// Request logger
 app.use((req, res, next) => {
   console.log(`[${req.method}] ${req.url}`);
   next();
 });
 
-// Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Routes
+// Public routes (no auth)
+app.use('/auth', require('./routes/auth'));
+app.use('/admin', require('./routes/admin'));
+
+// Protected routes (require JWT)
+app.use(authenticate);
 app.use('/weather', require('./routes/weather'));
 app.use('/risks', require('./routes/risks'));
 app.use('/chat', require('./routes/chat'));
@@ -36,11 +40,7 @@ app.use('/leaching-report', require('./routes/leaching'));
 app.use('/spray-log', require('./routes/spray-log'));
 app.use('/crop-calendar', require('./routes/crop-calendar'));
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found', code: 404 });
-});
-
+app.use((req, res) => res.status(404).json({ error: 'Route not found', code: 404 }));
 app.use(errorHandler);
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -62,7 +62,6 @@ async function startServer() {
     console.error('Database initialisation failed:', err.message);
     process.exit(1);
   }
-
   app.listen(PORT, '0.0.0.0', () => {
     const localIP = getLocalIP();
     console.log(`\n  CropGuard Backend running`);
@@ -73,5 +72,4 @@ async function startServer() {
 }
 
 startServer();
-
 module.exports = app;
