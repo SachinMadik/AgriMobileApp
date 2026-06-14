@@ -18,7 +18,8 @@ import {
   View,
 } from "react-native";
 import { api } from "../../services/api";
-import { getSoilNutrients, getSoilHealthScore, getSoilTrend, getSoilRecommendations } from "../../services/soil";
+import { getSoilNutrients, getSoilHealthScore, getSoilTrend, getSoilRecommendations, updateSoilNutrient } from "../../services/soil";
+import { getProfile } from "../../services/profile";
 import { theme } from "../../theme";
 
 type Status = "SAFE" | "WARNING" | "CRITICAL" | "LOW";
@@ -68,6 +69,10 @@ export default function Soil() {
   const [healthScore, setHealthScore] = useState(0);
   const [trend, setTrend] = useState<any[]>([]);
   const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [soilType, setSoilType] = useState("Soil");
+  const [editNutrient, setEditNutrient] = useState<Nutrient | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -82,12 +87,27 @@ export default function Soil() {
         setHealthScore((h as any).score ?? h ?? 0);
         setTrend(t);
         setRecommendations(r);
+        getProfile().then((p: any) => { if (p?.soilType) setSoilType(p.soilType); }).catch(() => {});
       } catch (e) {
         console.log("Soil fetch error", e);
       }
     }
     load();
   }, []);
+
+  async function saveReading() {
+    if (!editNutrient) return;
+    const v = parseFloat(editValue);
+    if (isNaN(v)) { Alert.alert("Invalid", "Enter a valid number."); return; }
+    setSaving(true);
+    try {
+      const updated = await updateSoilNutrient(editNutrient.id, v);
+      setNutrients((prev) => prev.map((n: any) => n.id === editNutrient.id ? { ...n, ...updated } : n));
+      setEditNutrient(null);
+      getSoilHealthScore().then((h: any) => setHealthScore(h.score ?? h ?? 0)).catch(() => {});
+    } catch { Alert.alert("Error", "Could not update reading."); }
+    finally { setSaving(false); }
+  }
 
   async function runSoilTest() {
     try {
@@ -217,7 +237,7 @@ export default function Soil() {
         <View>
           <Text style={styles.title}>Soil Intelligence</Text>
           <Text style={styles.subtitle}>
-            Sandy loam · Last updated 1 hr ago
+            {soilType} · Tap nutrient to update reading
           </Text>
         </View>
         <TouchableOpacity style={styles.iconBtn} onPress={reload}>
@@ -269,7 +289,7 @@ export default function Soil() {
         <View style={styles.section}>
           <SectionHeader title="Nutrient Analysis" />
           {nutrients.map((n) => (
-            <NutrientCard key={n.id} nutrient={n} />
+            <NutrientCard key={n.id} nutrient={n} onEdit={() => { setEditNutrient(n); setEditValue(String(n.value)); }} />
           ))}
         </View>
 
@@ -325,6 +345,33 @@ export default function Soil() {
         <View style={{ height: 32 }} />
       </ScrollView>
 
+      {/* ── Edit Nutrient Modal ── */}
+      <Modal visible={!!editNutrient} transparent animationType="slide" onRequestClose={() => setEditNutrient(null)}>
+        <Pressable style={lStyles.overlay} onPress={() => setEditNutrient(null)} />
+        <View style={[lStyles.sheet, { paddingBottom: 40 }]}>
+          <View style={lStyles.handle} />
+          <Text style={{ color: "white", fontSize: 18, fontWeight: "800", marginBottom: 4 }}>Update Reading</Text>
+          <Text style={{ color: "#3d6e64", fontSize: 13, marginBottom: 16 }}>{editNutrient?.name} {editNutrient?.unit ? `(${editNutrient.unit})` : ""}</Text>
+          <TextInput
+            style={{ backgroundColor: "#071912", borderRadius: 12, borderWidth: 1, borderColor: "#1a4036", padding: 14, color: "white", fontSize: 22, fontWeight: "700", textAlign: "center" }}
+            value={editValue}
+            onChangeText={setEditValue}
+            keyboardType="decimal-pad"
+            autoFocus
+            selectTextOnFocus
+          />
+          <Text style={{ color: "#3d6e64", fontSize: 11, textAlign: "center", marginTop: 8 }}>
+            Range: {editNutrient?.min} – {editNutrient?.max} · Optimal: {editNutrient?.optimal}
+          </Text>
+          <TouchableOpacity
+            style={{ marginTop: 20, backgroundColor: "#1b5e20", borderRadius: 12, paddingVertical: 14, alignItems: "center", opacity: saving ? 0.6 : 1 }}
+            onPress={saveReading} disabled={saving}
+          >
+            {saving ? <ActivityIndicator color="white" /> : <Text style={{ color: "white", fontWeight: "700", fontSize: 15 }}>Save Reading</Text>}
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
       {/* ── Leaching Report Modal ── */}
       <Modal visible={showLeaching} transparent animationType="slide" onRequestClose={() => setShowLeaching(false)}>
         <Pressable style={lStyles.overlay} onPress={() => setShowLeaching(false)} />
@@ -353,7 +400,7 @@ function HealthGauge({ score }: { score: number }) {
   );
 }
 
-function NutrientCard({ nutrient: n }: { nutrient: Nutrient }) {
+function NutrientCard({ nutrient: n, onEdit }: { nutrient: Nutrient; onEdit: () => void }) {
   const cfg = STATUS_CONFIG[n.status];
   const pct = (n.value - n.min) / (n.max - n.min);
   const optPct = (n.optimal - n.min) / (n.max - n.min);
@@ -389,11 +436,14 @@ function NutrientCard({ nutrient: n }: { nutrient: Nutrient }) {
             </Text>
           </View>
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: cfg.bg }]}>
-          <Ionicons name={cfg.icon as any} size={12} color={cfg.color} />
-          <Text style={[styles.statusText, { color: cfg.color }]}>
-            {n.status}
-          </Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <View style={[styles.statusBadge, { backgroundColor: cfg.bg }]}>
+            <Ionicons name={cfg.icon as any} size={12} color={cfg.color} />
+            <Text style={[styles.statusText, { color: cfg.color }]}>{n.status}</Text>
+          </View>
+          <TouchableOpacity onPress={onEdit} style={{ padding: 4 }}>
+            <Ionicons name="pencil-outline" size={15} color="#3d6e64" />
+          </TouchableOpacity>
         </View>
       </View>
 
