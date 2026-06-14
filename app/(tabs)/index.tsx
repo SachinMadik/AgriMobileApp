@@ -16,75 +16,30 @@ import {
 import { getUserLocation } from "../../services/location";
 import { getWeather } from "../../services/weather";
 import { getRisks } from "../../services/risk";
+import { getAlerts } from "../../services/alerts";
 import { api } from "../../services/api";
-import { mockActivity } from "../../services/mockData";
 import { getProfile } from "../../services/profile";
 import { theme } from "../../theme";
 
 const { width } = Dimensions.get("window");
 
-const NAV_ITEMS = [
-  {
-    icon: "analytics",
-    title: "Environment",
-    subtitle: "Live sensor data",
-    route: "/dashboard",
-    color: "#44c2a8",
-  },
-  {
-    icon: "map",
-    title: "Disease Map",
-    subtitle: "Regional outbreaks",
-    route: "/heatmap",
-    color: "#f9a825",
-  },
-  {
-    icon: "warning",
-    title: "Alerts",
-    subtitle: "3 active warnings",
-    route: "/alerts",
-    color: "#ef5350",
-  },
-  {
-    icon: "leaf",
-    title: "Soil Health",
-    subtitle: "Nutrient analysis",
-    route: "/soil",
-    color: "#66bb6a",
-  },
-  {
-    icon: "chatbubble-ellipses",
-    title: "AI Assistant",
-    subtitle: "Ask anything",
-    route: "/chatbot",
-    color: "#42a5f5",
-  },
-  {
-    icon: "person",
-    title: "My Profile",
-    subtitle: "Farm settings",
-    route: "/profile",
-    color: "#ab47bc",
-  },
-];
-
-const RISK_INDICATORS = [
-  { label: "Blight Risk", level: "Moderate", color: "#f9a825", pct: 0.54 },
-  { label: "Frost Risk", level: "Low", color: "#44c2a8", pct: 0.12 },
-  { label: "Drought Risk", level: "High", color: "#ef5350", pct: 0.82 },
+const BASE_NAV_ITEMS = [
+  { icon: "analytics", title: "Environment", subtitle: "Live sensor data", route: "/dashboard", color: "#44c2a8" },
+  { icon: "map", title: "Disease Map", subtitle: "Regional outbreaks", route: "/heatmap", color: "#f9a825" },
+  { icon: "warning", title: "Alerts", subtitle: "Loading…", route: "/alerts", color: "#ef5350" },
+  { icon: "leaf", title: "Soil Health", subtitle: "Nutrient analysis", route: "/soil", color: "#66bb6a" },
+  { icon: "chatbubble-ellipses", title: "AI Assistant", subtitle: "Ask anything", route: "/chatbot", color: "#42a5f5" },
+  { icon: "person", title: "My Profile", subtitle: "Farm settings", route: "/profile", color: "#ab47bc" },
 ];
 
 export default function Home() {
   const router = useRouter();
   const [weather, setWeather] = useState<any>(null);
   const [greeting, setGreeting] = useState("Good morning");
-  const [riskIndicators, setRiskIndicators] = useState([
-    { label: "Blight Risk", level: "Moderate", color: "#f9a825", pct: 0.54 },
-    { label: "Frost Risk", level: "Low", color: "#44c2a8", pct: 0.12 },
-    { label: "Drought Risk", level: "High", color: "#ef5350", pct: 0.82 },
-  ]);
+  const [riskIndicators, setRiskIndicators] = useState<any[]>([]);
   const [activityFeed, setActivityFeed] = useState<any[]>([]);
   const [userName, setUserName] = useState("Farmer");
+  const [navItems, setNavItems] = useState(BASE_NAV_ITEMS);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
 
@@ -111,10 +66,11 @@ export default function Home() {
         const location = await getUserLocation();
         const profile = await getProfile().catch(() => null);
         if (profile?.name) setUserName(profile.name.split(" ")[0]);
-        const [data, risks, activity] = await Promise.all([
+        const [data, risks, activity, alerts] = await Promise.all([
           getWeather(location.latitude, location.longitude),
           getRisks(location.latitude, location.longitude),
-          api.get("/activity").then((r) => r.data).catch(() => mockActivity),
+          api.get("/activity").then((r) => r.data).catch(() => []),
+          getAlerts().catch(() => []),
         ]);
         setWeather(data);
         setRiskIndicators([
@@ -123,6 +79,12 @@ export default function Home() {
           { label: "Drought Risk", level: risks.drought === "High" ? "High" : risks.drought === "Medium" ? "Moderate" : "Low", color: risks.drought === "High" ? "#ef5350" : "#f9a825", pct: risks.drought_pct / 100 },
         ]);
         setActivityFeed(activity);
+        const unread = alerts.filter((a: any) => !a.acknowledged).length;
+        setNavItems(BASE_NAV_ITEMS.map((item) =>
+          item.route === "/alerts"
+            ? { ...item, subtitle: unread > 0 ? `${unread} active warning${unread > 1 ? "s" : ""}` : "No active warnings" }
+            : item
+        ));
       } catch (e) {
         console.log(e);
       }
@@ -206,7 +168,7 @@ export default function Home() {
         <View style={styles.section}>
           <SectionHeader title="Farm Intelligence" />
           <View style={styles.grid}>
-            {NAV_ITEMS.map((item, i) => (
+            {navItems.map((item, i) => (
               <NavCard
                 key={i}
                 item={item}
@@ -224,12 +186,7 @@ export default function Home() {
             {activityFeed.length > 0 ? activityFeed.map((item, i) => (
               <SummaryRow key={i} icon={item.icon} color={item.color} label={item.label} time={item.time} />
             )) : (
-              <>
-                <SummaryRow icon="checkmark-circle" color="#44c2a8" label="Sensor check completed" time="06:30 AM" />
-                <SummaryRow icon="warning" color="#f9a825" label="Moderate blight risk detected" time="08:15 AM" />
-                <SummaryRow icon="flask" color="#42a5f5" label="Soil N-P-K within safe range" time="09:00 AM" />
-                <SummaryRow icon="notifications" color="#ef5350" label="Spray reminder scheduled" time="10:30 AM" />
-              </>
+              <SummaryRow icon="time-outline" color="#3d6e64" label="No activity recorded today" time="" />
             )}
           </View>
         </View>
