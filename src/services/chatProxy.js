@@ -1,13 +1,7 @@
 const fetch = require('node-fetch');
 
-// Use HF Inference API with a reliable, always-available model
-const MODELS = [
-  'HuggingFaceH4/zephyr-7b-beta',
-  'mistralai/Mistral-7B-Instruct-v0.2',
-  'tiiuae/falcon-7b-instruct',
-];
-
-const HF_BASE = 'https://api-inference.huggingface.co/models/';
+const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const MODEL = 'llama-3.1-8b-instant'; // free, fast
 
 const SYSTEM_PROMPT = `You are CropGuard AI, an agricultural assistant for Indian farmers.
 Answer ONLY agriculture questions: crop diseases, pests, soil, fertilizers, irrigation, weather, harvest, government schemes.
@@ -27,35 +21,6 @@ function isAgriRelated(text) {
   return AGRI_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
-function buildPrompt(messages) {
-  const history = messages.map((m) =>
-    m.role === 'user' ? `User: ${m.content}` : `Assistant: ${m.content}`
-  ).join('\n');
-  return `${SYSTEM_PROMPT}\n\n${history}\nAssistant:`;
-}
-
-async function tryModel(modelUrl, prompt, token) {
-  const res = await fetch(modelUrl, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      inputs: prompt,
-      parameters: { max_new_tokens: 250, temperature: 0.4, top_p: 0.9, return_full_text: false },
-      options: { wait_for_model: true, use_cache: false },
-    }),
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status, body });
-  }
-
-  const data = await res.json();
-  const text = (Array.isArray(data) ? data[0]?.generated_text : data?.generated_text) ?? '';
-  // Clean up — stop at next "User:" if model continues the conversation
-  return text.split(/\nUser:/i)[0].trim();
-}
-
 async function sendChat(messages) {
   const lastUser = [...messages].reverse().find((m) => m.role === 'user');
   const userText = lastUser?.content ?? '';
@@ -64,34 +29,31 @@ async function sendChat(messages) {
     return { reply: "I can only help with agriculture-related questions. Please ask about crops, soil, pests, irrigation, or farming. 🌱" };
   }
 
-  const token = process.env.HF_API_TOKEN;
-  if (!token || token.length < 10) {
-    return { reply: "AI assistant not configured. Please add HF_API_TOKEN to environment variables." };
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) {
+    return { reply: "AI assistant not configured. Please add GROQ_API_KEY to environment variables." };
   }
 
-  const prompt = buildPrompt(messages);
+  const res = await fetch(GROQ_API_URL, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: MODEL,
+      messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...messages],
+      max_tokens: 250,
+      temperature: 0.4,
+    }),
+  });
 
-  for (const model of MODELS) {
-    try {
-      console.log(`[Chat] Trying model: ${model}`);
-      const reply = await tryModel(`${HF_BASE}${model}`, prompt, token);
-      if (reply && reply.length > 10) {
-        console.log(`[Chat] Success with ${model} (${reply.length} chars)`);
-        return { reply };
-      }
-    } catch (err) {
-      console.warn(`[Chat] ${model} failed: ${err.message}`);
-      if (err.status === 401 || err.status === 403) {
-        return { reply: "Invalid Hugging Face token. Please check HF_API_TOKEN in Render environment variables." };
-      }
-      // Try next model on 503/429/timeout
-    }
+  if (!res.ok) {
+    const err = await res.text();
+    console.error('[Chat] Groq error:', res.status, err);
+    throw new Error(`Groq API error: ${res.status}`);
   }
 
-  // All models failed — return helpful offline response
-  return {
-    reply: "The AI service is currently busy. Here are quick tips:\n• Late blight: apply copper fungicide immediately\n• Low nitrogen: apply urea 8kg/ha\n• Pest control: use neem oil spray\n• Please try again in a moment.",
-  };
+  const data = await res.json();
+  const reply = data.choices?.[0]?.message?.content?.trim() ?? '';
+  return { reply };
 }
 
 module.exports = { sendChat };
