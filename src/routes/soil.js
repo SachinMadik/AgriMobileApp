@@ -20,12 +20,19 @@ async function ensureSoilData(userId) {
     run('INSERT INTO soil_nutrients (id, user_id, name, symbol, value, unit, min, max, optimal, status, description, action) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [n[0], userId, ...n.slice(1)])
   ));
-  const trends = [
-    ['Mar 20', 38, 27, 62, '2026-03-20'], ['Mar 21', 40, 28, 63, '2026-03-21'],
-    ['Mar 22', 41, 27, 65, '2026-03-22'], ['Mar 23', 42, 28, 66, '2026-03-23'],
-    ['Mar 24', 42, 28, 65, '2026-03-24'], ['Mar 25', 43, 29, 65, '2026-03-25'],
-    ['Mar 26', 42, 28, 64, '2026-03-26'],
+  // Use the last 7 days relative to today for trend data
+  const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const trendBase = [
+    [38, 27, 62], [40, 28, 63], [41, 27, 65],
+    [42, 28, 66], [42, 28, 65], [43, 29, 65], [42, 28, 64],
   ];
+  const trends = trendBase.map((vals, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    const label = DAYS[d.getDay()];
+    const date = d.toISOString().split('T')[0];
+    return [label, vals[0], vals[1], vals[2], date];
+  });
   await Promise.all(trends.map(t =>
     run('INSERT INTO soil_trend (user_id, label, n, p, k, recorded_date) VALUES (?, ?, ?, ?, ?, ?)', [userId, ...t])
   ));
