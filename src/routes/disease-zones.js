@@ -38,7 +38,7 @@ async function ensureZoneData(userId) {
 router.get('/', async (req, res, next) => {
   try {
     await ensureZoneData(req.userId);
-    res.json((await all('SELECT * FROM disease_zones WHERE user_id = ? ORDER BY created_at DESC', [req.userId])).map(mapZone));
+    res.json((await all('SELECT * FROM disease_zones ORDER BY created_at DESC')).map(mapZone));
   } catch (err) { next(err); }
 });
 
