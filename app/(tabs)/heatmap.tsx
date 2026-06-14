@@ -2,10 +2,11 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert, KeyboardAvoidingView, Linking, Modal,
+  ActivityIndicator, Alert, KeyboardAvoidingView, Modal,
   Platform, Pressable, ScrollView, StatusBar, StyleSheet,
   Text, TextInput, TouchableOpacity, View,
 } from "react-native";
+import WebView from "react-native-webview";
 import { api } from "../../services/api";
 import { getDiseaseZones } from "../../services/diseaseZones";
 import { theme } from "../../theme";
@@ -48,6 +49,41 @@ function getSeverity(z: DiseaseZone): Severity {
   return "low";
 }
 
+
+function LeafletMap({ zones, userLat, userLon }: { zones: DiseaseZone[]; userLat: number; userLon: number }) {
+  const markers = zones.map((z) => ({
+    lat: z.latitude ?? userLat + (Math.random() - 0.5) * 0.1,
+    lon: z.longitude ?? userLon + (Math.random() - 0.5) * 0.1,
+    color: SEV_COLOR[getSeverity(z)],
+    label: z.disease,
+    severity: getSeverity(z),
+    cases: z.cases ?? 1,
+  }));
+
+  const html = `<!DOCTYPE html><html><head>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>html,body,#map{height:100%;margin:0;padding:0;background:#071912;}</style>
+  </head><body><div id="map"></div><script>
+  var map = L.map('map', {zoomControl:true}).setView([${userLat},${userLon}], 11);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'© OpenStreetMap', maxZoom:18
+  }).addTo(map);
+  // User location
+  L.circleMarker([${userLat},${userLon}],{radius:8,color:'#44c2a8',fillColor:'#44c2a8',fillOpacity:0.9}).addTo(map).bindPopup('Your Location');
+  // Disease zones
+  var zones = ${JSON.stringify(markers)};
+  zones.forEach(function(z){
+    var r = z.severity==='critical'?28:z.severity==='high'?22:z.severity==='moderate'?16:12;
+    L.circle([z.lat,z.lon],{radius:r*100,color:z.color,fillColor:z.color,fillOpacity:0.25,weight:2}).addTo(map)
+      .bindPopup('<b>'+z.label+'</b><br>Severity: '+z.severity.toUpperCase()+'<br>Cases: '+z.cases);
+    L.circleMarker([z.lat,z.lon],{radius:6,color:z.color,fillColor:z.color,fillOpacity:1}).addTo(map);
+  });
+  </script></body></html>`;
+
+  return <WebView source={{ html }} style={{ flex: 1 }} scrollEnabled={false} />;
+}
 
 export default function Heatmap() {
   const [zones, setZones] = useState<DiseaseZone[]>([]);
@@ -132,37 +168,9 @@ export default function Heatmap() {
         </View>
       </View>
 
-      {/* Zone Visual Grid */}
+      {/* Leaflet Map */}
       <View style={styles.mapWrap}>
-        <View style={styles.mapBg}>
-          {zones.map((zone, i) => {
-            const sev = getSeverity(zone);
-            const color = SEV_COLOR[sev];
-            const size = sev === "critical" ? 52 : sev === "high" ? 42 : sev === "moderate" ? 34 : 26;
-            const positions = [
-              { top: "20%", left: "30%" }, { top: "40%", left: "60%" },
-              { top: "60%", left: "25%" }, { top: "25%", left: "70%" },
-              { top: "55%", left: "50%" }, { top: "70%", left: "70%" },
-              { top: "15%", left: "50%" }, { top: "45%", left: "15%" },
-            ];
-            const pos = positions[i % positions.length];
-            return (
-              <TouchableOpacity
-                key={zone.id}
-                style={[styles.zoneCircle, { width: size, height: size, borderRadius: size/2, backgroundColor: `${color}33`, borderColor: color, top: pos.top as any, left: pos.left as any }]}
-                onPress={() => Alert.alert(zone.disease, `Severity: ${sev.toUpperCase()}\n${zone.description ?? ""}\nCases: ${zone.cases ?? 1}`)}
-              >
-                <Ionicons name="warning" size={size * 0.4} color={color} />
-              </TouchableOpacity>
-            );
-          })}
-          {zones.length === 0 && !loading && (
-            <View style={styles.mapEmpty}>
-              <Ionicons name="shield-checkmark-outline" size={40} color="#1a4036" />
-              <Text style={styles.mapEmptyText}>No zones reported</Text>
-            </View>
-          )}
-        </View>
+        <LeafletMap zones={zones} userLat={userLoc.lat} userLon={userLoc.lon} />
         {/* Legend */}
         <View style={styles.legend}>
           {(["critical", "high", "moderate", "low"] as Severity[]).map((s) => (
@@ -174,7 +182,7 @@ export default function Heatmap() {
         </View>
         <TouchableOpacity style={styles.tapHint} onPress={() => setShowForm(true)}>
           <Ionicons name="add-circle-outline" size={12} color="#9fbdb5" />
-          <Text style={styles.tapHintText}>Tap to report a zone</Text>
+          <Text style={styles.tapHintText}>Report a zone</Text>
         </TouchableOpacity>
       </View>
 
@@ -303,12 +311,6 @@ const styles = StyleSheet.create({
   },
 
   mapWrap: { height: 320, position: "relative" },
-  map: { flex: 1 },
-  mapLoading: {
-    ...StyleSheet.absoluteFillObject, backgroundColor: "#0c2b24",
-    alignItems: "center", justifyContent: "center", gap: 10,
-  },
-  mapLoadingText: { color: "#3d6e64", fontSize: 13 },
 
   legend: {
     position: "absolute", bottom: 10, left: 10,
@@ -385,16 +387,4 @@ const styles = StyleSheet.create({
     backgroundColor: "#1b5e20", borderWidth: 1, borderColor: "#2E7D32", alignItems: "center",
   },
   submitText: { color: "white", fontWeight: "700", fontSize: 15 },
-  mapBg: {
-    flex: 1, backgroundColor: "#071912", position: "relative",
-  },
-  zoneCircle: {
-    position: "absolute", alignItems: "center", justifyContent: "center",
-    borderWidth: 2,
-  },
-  mapEmpty: {
-    flex: 1, alignItems: "center", justifyContent: "center", gap: 8,
-  },
-  mapLoadingText: { color: "#3d6e64", fontSize: 13 },
-  mapEmptyText: { color: "#3d6e64", fontSize: 13 },
 });
