@@ -20,6 +20,7 @@ import {
 import { api } from "../../services/api";
 import { sendAlertNotification, requestNotificationPermission } from "../../services/notifications";
 import { getAlerts, acknowledgeAlert, acknowledgeAll as acknowledgeAllApi, runRiskCheck as runRiskCheckApi, getReminders, createReminder, markReminderDone as markReminderDoneApi, deleteReminder as deleteReminderApi } from "../../services/alerts";
+import { getProfile } from "../../services/profile";
 import { theme } from "../../theme";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -87,6 +88,7 @@ export default function Alerts() {
   // Farm context
   const [cropType, setCropType] = useState<CropType>("tomato");
   const [season, setSeason] = useState<Season>("kharif");
+  const [soilType, setSoilType] = useState("loam");
   const [showFarmPicker, setShowFarmPicker] = useState(false);
 
   // Reminder form
@@ -134,6 +136,15 @@ export default function Alerts() {
   useEffect(() => {
     fetchAlerts();
     fetchReminders();
+    // Pre-fill farm context from profile
+    getProfile().then((p) => {
+      if (!p) return;
+      const crop = p.primaryCrop?.toLowerCase().split(" ")[0] as CropType;
+      if (CROPS.includes(crop)) setCropType(crop);
+      const s = p.season?.toLowerCase().split(" ")[0] as Season;
+      if (SEASONS.includes(s)) setSeason(s);
+      if (p.soilType) setSoilType(p.soilType.toLowerCase());
+    }).catch(() => {});
   }, []);
 
   // ── Risk Check ─────────────────────────────────────────────────────────────
@@ -146,19 +157,8 @@ export default function Alerts() {
         Alert.alert("Permission Denied", "Location permission is needed to check local weather risks.");
         return;
       }
-      const loc = await Location.getCurrentPositionAsync({  notifBanner: {
-    position: "absolute", top: 0, left: 0, right: 0, zIndex: 999,
-    flexDirection: "row", alignItems: "center", gap: 10,
-    backgroundColor: "#0c2b24", borderLeftWidth: 4, borderLeftColor: "#f9a825",
-    paddingHorizontal: 16, paddingVertical: 14,
-    paddingTop: Platform.OS === "ios" ? 52 : 14,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 8, elevation: 10,
-  },
-  bannerTitle: { color: "white", fontSize: 13, fontWeight: "700" },
-  bannerSub: { color: "#5a7a72", fontSize: 11, marginTop: 1 },
-});
-      const data = await runRiskCheckApi({ lat: loc.coords.latitude, lon: loc.coords.longitude, cropType, season }) ?? {};
+      const loc = await Location.getCurrentPositionAsync({});
+      const data = await runRiskCheckApi({ lat: loc.coords.latitude, lon: loc.coords.longitude, cropType, season, soilType }) ?? {};
       if (data.weather) setWeather(data.weather);
       if (Array.isArray(data.alerts) && data.alerts.length > 0) {
         setAlerts((prev) => [...data.alerts, ...prev]);
