@@ -1,12 +1,12 @@
 CREATE TABLE IF NOT EXISTS users (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  id         SERIAL PRIMARY KEY,
   phone      TEXT NOT NULL UNIQUE,
   password   TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (NOW()::TEXT)
 );
 
 CREATE TABLE IF NOT EXISTS profile (
-  id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+  id                    SERIAL PRIMARY KEY,
   user_id               INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
   name                  TEXT NOT NULL DEFAULT '',
   farm_name             TEXT NOT NULL DEFAULT '',
@@ -43,11 +43,11 @@ CREATE TABLE IF NOT EXISTS soil_nutrients (
   user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name        TEXT NOT NULL,
   symbol      TEXT NOT NULL,
-  value       REAL NOT NULL,
+  value       NUMERIC NOT NULL,
   unit        TEXT NOT NULL,
-  min         REAL NOT NULL,
-  max         REAL NOT NULL,
-  optimal     REAL NOT NULL,
+  min         NUMERIC NOT NULL,
+  max         NUMERIC NOT NULL,
+  optimal     NUMERIC NOT NULL,
   status      TEXT NOT NULL,
   description TEXT NOT NULL,
   action      TEXT,
@@ -55,12 +55,12 @@ CREATE TABLE IF NOT EXISTS soil_nutrients (
 );
 
 CREATE TABLE IF NOT EXISTS soil_trend (
-  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  id            SERIAL PRIMARY KEY,
   user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   label         TEXT NOT NULL,
-  n             REAL NOT NULL,
-  p             REAL NOT NULL,
-  k             REAL NOT NULL,
+  n             NUMERIC NOT NULL,
+  p             NUMERIC NOT NULL,
+  k             NUMERIC NOT NULL,
   recorded_date TEXT NOT NULL
 );
 
@@ -70,28 +70,28 @@ CREATE TABLE IF NOT EXISTS disease_zones (
   disease      TEXT NOT NULL,
   pathogen     TEXT NOT NULL DEFAULT '',
   cases        INTEGER NOT NULL DEFAULT 1,
-  radius       REAL NOT NULL DEFAULT 2,
-  distance     REAL NOT NULL DEFAULT 0,
+  radius       NUMERIC NOT NULL DEFAULT 2,
+  distance     NUMERIC NOT NULL DEFAULT 0,
   risk         TEXT NOT NULL DEFAULT 'low',
   direction    TEXT NOT NULL DEFAULT 'N',
   last_updated TEXT NOT NULL,
   trend        TEXT NOT NULL DEFAULT 'stable',
-  latitude     REAL,
-  longitude    REAL,
+  latitude     NUMERIC,
+  longitude    NUMERIC,
   description  TEXT,
-  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at   TEXT NOT NULL DEFAULT (NOW()::TEXT),
   PRIMARY KEY (id, user_id)
 );
 
 CREATE TABLE IF NOT EXISTS disease_history (
-  id      INTEGER PRIMARY KEY AUTOINCREMENT,
+  id      SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   date    TEXT NOT NULL,
   event   TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS prevention_tips (
-  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  id       SERIAL PRIMARY KEY,
   user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   icon     TEXT NOT NULL,
   tip      TEXT NOT NULL,
@@ -99,7 +99,7 @@ CREATE TABLE IF NOT EXISTS prevention_tips (
 );
 
 CREATE TABLE IF NOT EXISTS notification_preferences (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  id         SERIAL PRIMARY KEY,
   user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   alert_type TEXT NOT NULL,
   enabled    INTEGER NOT NULL DEFAULT 1,
@@ -107,7 +107,7 @@ CREATE TABLE IF NOT EXISTS notification_preferences (
 );
 
 CREATE TABLE IF NOT EXISTS activity (
-  id      INTEGER PRIMARY KEY AUTOINCREMENT,
+  id      SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   icon    TEXT NOT NULL,
   color   TEXT NOT NULL,
@@ -123,7 +123,7 @@ CREATE TABLE IF NOT EXISTS reminders (
   datetime   TEXT NOT NULL,
   note       TEXT,
   done       INTEGER NOT NULL DEFAULT 0,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at TEXT NOT NULL DEFAULT (NOW()::TEXT),
   PRIMARY KEY (id, user_id)
 );
 
@@ -140,7 +140,7 @@ CREATE TABLE IF NOT EXISTS spray_logs (
   weather       TEXT NOT NULL DEFAULT '',
   notes         TEXT,
   done          INTEGER NOT NULL DEFAULT 0,
-  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at    TEXT NOT NULL DEFAULT (NOW()::TEXT),
   PRIMARY KEY (id, user_id)
 );
 
@@ -155,12 +155,12 @@ CREATE TABLE IF NOT EXISTS crop_cycles (
   expected_harvest TEXT NOT NULL,
   current_stage    TEXT NOT NULL DEFAULT 'sowing',
   notes            TEXT,
-  created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at       TEXT NOT NULL DEFAULT (NOW()::TEXT),
   PRIMARY KEY (id, user_id)
 );
 
 CREATE TABLE IF NOT EXISTS crop_stage_logs (
-  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  id       SERIAL PRIMARY KEY,
   cycle_id TEXT NOT NULL,
   stage    TEXT NOT NULL,
   date     TEXT NOT NULL,

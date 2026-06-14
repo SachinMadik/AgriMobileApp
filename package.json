@@ -16,7 +16,7 @@
     "jsonwebtoken": "^9.0.3",
     "node-cache": "^5.1.2",
     "node-fetch": "^2.7.0",
-    "sqlite3": "^5.1.7"
+    "pg": "^8.12.0"
   },
   "devDependencies": {
     "fast-check": "^3.17.2",

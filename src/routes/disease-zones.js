@@ -13,7 +13,7 @@ function mapZone(r) {
 // Seed default zones for a new user
 async function ensureZoneData(userId) {
   const existing = await get('SELECT COUNT(*) as c FROM disease_zones WHERE user_id = ?', [userId]);
-  if (existing.c > 0) return;
+  if (parseInt(existing.c) > 0) return;
   const zones = [
     ['Late Blight', 'Phytophthora infestans', 14, 8, 3.2, 'critical', 'NE', '12 min ago', 'rising'],
     ['Leaf Blight', 'Alternaria solani', 6, 5, 7.8, 'high', 'SW', '28 min ago', 'stable'],

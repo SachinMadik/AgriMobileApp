@@ -17,7 +17,7 @@ function mapAlert(row) {
 
 router.get('/', async (req, res, next) => {
   try {
-    const rows = await all('SELECT * FROM alerts WHERE user_id = ? ORDER BY rowid DESC', [req.userId]);
+    const rows = await all('SELECT * FROM alerts WHERE user_id = ? ORDER BY timestamp DESC', [req.userId]);
     res.json(rows.map(mapAlert));
   } catch (err) { next(err); }
 });

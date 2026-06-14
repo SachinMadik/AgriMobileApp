@@ -7,7 +7,7 @@ const STATUS_SCORE = { SAFE: 100, WARNING: 60, LOW: 40, CRITICAL: 0 };
 // Seed default soil data for a new user if none exists
 async function ensureSoilData(userId) {
   const existing = await get('SELECT COUNT(*) as c FROM soil_nutrients WHERE user_id = ?', [userId]);
-  if (existing.c > 0) return;
+  if (parseInt(existing.c) > 0) return;
   const nutrients = [
     ['N', 'Nitrogen', 'N', 42, 'kg/ha', 20, 80, 50, 'WARNING', 'Slightly below optimal for tomato cultivation.', 'Apply 8 kg/ha urea within the next 5 days.'],
     ['P', 'Phosphorus', 'P', 28, 'kg/ha', 15, 60, 35, 'SAFE', 'Phosphorus levels are within the healthy range.', null],

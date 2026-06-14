@@ -1,86 +1,50 @@
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+const { Pool } = require('pg');
 const fs = require('fs');
+const path = require('path');
 
-let db = null;
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL?.includes('supabase') ? { rejectUnauthorized: false } : false,
+});
 
-function getDb() {
-  if (!db) {
-    const dbPath = process.env.DB_PATH || path.join(__dirname, '../../cropguard.db');
-    db = new sqlite3.Database(dbPath);
-    db.run('PRAGMA journal_mode = WAL');
-    db.run('PRAGMA foreign_keys = ON');
-  }
-  return db;
+// Convert SQLite ? placeholders to PostgreSQL $1, $2, ...
+function toPostgres(sql) {
+  let i = 0;
+  return sql.replace(/\?/g, () => `$${++i}`);
 }
 
-function run(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    getDb().run(sql, params, function (err) {
-      if (err) reject(err);
-      else resolve(this);
-    });
-  });
+// Mirrors SQLite run(): returns { lastID, changes }
+async function run(sql, params = []) {
+  const pgSql = toPostgres(sql);
+  // If INSERT, append RETURNING id to capture lastID
+  const isInsert = /^\s*INSERT/i.test(pgSql);
+  const finalSql = isInsert && !/RETURNING/i.test(pgSql) ? `${pgSql} RETURNING id` : pgSql;
+  const result = await pool.query(finalSql, params);
+  return {
+    lastID: result.rows?.[0]?.id ?? null,
+    changes: result.rowCount,
+  };
 }
 
-function get(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    getDb().get(sql, params, (err, row) => {
-      if (err) reject(err);
-      else resolve(row);
-    });
-  });
+// Mirrors SQLite get(): returns first row or undefined
+async function get(sql, params = []) {
+  const result = await pool.query(toPostgres(sql), params);
+  return result.rows[0];
 }
 
-function all(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    getDb().all(sql, params, (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows);
-    });
-  });
+// Mirrors SQLite all(): returns array of rows
+async function all(sql, params = []) {
+  const result = await pool.query(toPostgres(sql), params);
+  return result.rows;
 }
 
-function exec(sql) {
-  return new Promise((resolve, reject) => {
-    getDb().exec(sql, (err) => {
-      if (err) reject(err);
-      else resolve();
-    });
-  });
+async function exec(sql) {
+  await pool.query(sql);
 }
 
 async function initDb() {
   const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
-  await exec(schema);
-  await migrate();
+  await pool.query(schema);
 }
 
-// Adds missing columns/tables to existing databases without data loss
-async function migrate() {
-  // Add user_id column to tables that may already exist without it
-  const migrations = [
-    `ALTER TABLE alerts ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE`,
-    `ALTER TABLE soil_nutrients ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE`,
-    `ALTER TABLE soil_trend ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE`,
-    `ALTER TABLE disease_zones ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE`,
-    `ALTER TABLE disease_history ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE`,
-    `ALTER TABLE prevention_tips ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE`,
-    `ALTER TABLE notification_preferences ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE`,
-    `ALTER TABLE activity ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE`,
-    `ALTER TABLE reminders ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE`,
-    `ALTER TABLE spray_logs ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE`,
-    `ALTER TABLE crop_cycles ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE`,
-    `ALTER TABLE profile ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE`,
-  ];
-
-  for (const sql of migrations) {
-    try {
-      await run(sql);
-    } catch (e) {
-      // Column already exists — safe to ignore
-    }
-  }
-}
-
-module.exports = { getDb, initDb, run, get, all, exec };
+module.exports = { initDb, run, get, all, exec, pool };
