@@ -10,35 +10,9 @@ function mapZone(r) {
     description: r.description ?? null, createdAt: r.created_at };
 }
 
-// Seed default zones for a new user
-async function ensureZoneData(userId) {
-  const existing = await get('SELECT COUNT(*) as c FROM disease_zones WHERE user_id = ?', [userId]);
-  if (parseInt(existing.c) > 0) return;
-  const zones = [
-    ['Late Blight', 'Phytophthora infestans', 14, 8, 3.2, 'critical', 'NE', '12 min ago', 'rising'],
-    ['Leaf Blight', 'Alternaria solani', 6, 5, 7.8, 'high', 'SW', '28 min ago', 'stable'],
-    ['Powdery Mildew', 'Erysiphe cichoracearum', 3, 3, 12.1, 'moderate', 'W', '1 hr ago', 'falling'],
-    ['Root Rot', 'Fusarium oxysporum', 1, 2, 19.4, 'low', 'S', '2 hr ago', 'stable'],
-  ];
-  await Promise.all(zones.map(z =>
-    run(`INSERT INTO disease_zones (id,user_id,disease,pathogen,cases,radius,distance,risk,direction,last_updated,trend) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-      [newId(), userId, ...z])
-  ));
-  const tips = [
-    ['shield-checkmark', 'Apply copper-based fungicide as preventive measure within 48 hours', 'Urgent'],
-    ['water', 'Avoid overhead irrigation; switch to drip irrigation to reduce leaf wetness', 'High'],
-    ['eye', 'Inspect plants in zone B4 daily for early blight symptoms', 'Medium'],
-    ['people', 'Coordinate with neighboring farms to synchronize spray schedules', 'Medium'],
-  ];
-  await Promise.all(tips.map(t =>
-    run('INSERT INTO prevention_tips (user_id, icon, tip, priority) VALUES (?, ?, ?, ?)', [userId, ...t])
-  ));
-}
-
 router.get('/', async (req, res, next) => {
   try {
-    await ensureZoneData(req.userId);
-    res.json((await all('SELECT * FROM disease_zones ORDER BY created_at DESC')).map(mapZone));
+    res.json((await all('SELECT * FROM disease_zones WHERE user_id = ? ORDER BY created_at DESC', [req.userId])).map(mapZone));
   } catch (err) { next(err); }
 });
 
@@ -80,7 +54,6 @@ router.get('/history', async (req, res, next) => {
 
 router.get('/prevention-tips', async (req, res, next) => {
   try {
-    await ensureZoneData(req.userId);
     res.json(await all('SELECT icon, tip, priority FROM prevention_tips WHERE user_id = ?', [req.userId]));
   } catch (err) { next(err); }
 });
