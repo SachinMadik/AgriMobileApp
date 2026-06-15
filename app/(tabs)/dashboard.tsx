@@ -222,18 +222,10 @@ function StatCard({
 }
 
 function ForecastStrip({ forecast }: { forecast: any[] }) {
-  const data = forecast.length > 0 ? forecast : [
-    { day: "Mon", icon: "sunny", high: 32, low: 22 },
-    { day: "Tue", icon: "partly-sunny", high: 29, low: 20 },
-    { day: "Wed", icon: "rainy", high: 25, low: 18 },
-    { day: "Thu", icon: "thunderstorm", high: 23, low: 17 },
-    { day: "Fri", icon: "cloudy", high: 27, low: 19 },
-    { day: "Sat", icon: "sunny", high: 31, low: 21 },
-    { day: "Sun", icon: "partly-sunny", high: 30, low: 20 },
-  ];
+  if (forecast.length === 0) return null;
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 4 }}>
-      {data.map((f, i) => (
+      {forecast.map((f, i) => (
         <View key={i} style={styles.forecastItem}>
           <Text style={styles.forecastDay}>{f.day}</Text>
           <Ionicons
@@ -375,15 +367,15 @@ export default function Dashboard() {
     loadData();
   }
 
-  /* Mock historical chart data */
+  // Real forecast-based chart data
   const tempData = {
-    labels: ["6am", "9am", "12pm", "3pm", "6pm", "9pm"],
-    datasets: [{ data: [22, 25, 31, 34, 30, 26], strokeWidth: 2 }],
+    labels: forecast.length > 0 ? forecast.map((f: any) => f.day) : [],
+    datasets: [{ data: forecast.length > 0 ? forecast.map((f: any) => f.high) : [0], strokeWidth: 2 }],
   };
 
   const rainfallData = {
-    labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-    datasets: [{ data: [0, 2, 8, 12, 5, 1, 0] }],
+    labels: forecast.length > 0 ? forecast.map((f: any) => f.day) : [],
+    datasets: [{ data: forecast.length > 0 ? forecast.map((f: any) => f.low) : [0] }],
   };
 
   const chartConfig = {
@@ -474,7 +466,7 @@ export default function Dashboard() {
 
       {/* ── Temperature Chart ── */}
       <View style={styles.chartCard}>
-        <Text style={styles.sectionTitle}>Temperature Trend (Today)</Text>
+        <Text style={styles.sectionTitle}>7-Day High Temperature (°C)</Text>
         {loading ? (
           <SkeletonBlock
             height={180}
@@ -497,7 +489,7 @@ export default function Dashboard() {
 
       {/* ── Rainfall Chart ── */}
       <View style={styles.chartCard}>
-        <Text style={styles.sectionTitle}>Weekly Rainfall (mm)</Text>
+        <Text style={styles.sectionTitle}>7-Day Low Temperature (°C)</Text>
         {loading ? (
           <SkeletonBlock
             height={180}
