@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import { api } from "../../services/api";
 import { getProfile, updateProfile } from "../../services/profile";
+import { logout } from "../../services/auth";
 import { theme } from "../../theme";
 
 const SETUP_KEY = "cropguard_profile_setup_done";
@@ -412,7 +413,7 @@ export default function Profile() {
               Alert.alert("Sign Out", "Are you sure you want to sign out?", [
                 { text: "Cancel", style: "cancel" },
                 { text: "Sign Out", style: "destructive", onPress: async () => {
-                  await AsyncStorage.multiRemove([SETUP_KEY, "cropguard_token", "cropguard_user_id"]);
+                  await logout();
                   router.replace("/auth");
                 }},
               ]);
