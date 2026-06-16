@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   Alert,
@@ -33,6 +34,7 @@ const CROPS = ["Tomato", "Rice", "Wheat", "Cotton", "Maize", "Sugarcane", "Groun
 const SOILS = ["Sandy Loam", "Clay Loam", "Loam", "Sandy", "Clay", "Silt", "Silty Loam"];
 
 export default function Profile() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [showSetup, setShowSetup] = useState(false);
   const [profile, setProfile] = useState<any>(null);
@@ -410,8 +412,8 @@ export default function Profile() {
               Alert.alert("Sign Out", "Are you sure you want to sign out?", [
                 { text: "Cancel", style: "cancel" },
                 { text: "Sign Out", style: "destructive", onPress: async () => {
-                  await AsyncStorage.removeItem(SETUP_KEY);
-                  setShowSetup(true);
+                  await AsyncStorage.multiRemove([SETUP_KEY, "cropguard_token", "cropguard_user_id"]);
+                  router.replace("/auth");
                 }},
               ]);
             }}>
