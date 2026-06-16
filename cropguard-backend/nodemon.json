@@ -1,0 +1,7 @@
+{
+  "watch": ["src"],
+  "ext": "js,json",
+  "ignore": ["src/__tests__/**", "*.db", "*.db-wal", "*.db-shm"],
+  "delay": 500,
+  "signal": "SIGTERM"
+}
